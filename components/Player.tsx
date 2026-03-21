@@ -5,12 +5,20 @@ import { splitText } from '@/lib/tts/split';
 import { loadSettings, saveSettings, type PlayerSettings } from '@/lib/store';
 import { TTS_ENGINES, type TTSEngineType } from '@/lib/tts/types';
 import type { Voice } from '@/lib/tts/types';
+import { saveHistory, updateProgress, type HistoryItem } from '@/lib/storage';
+import { setupMediaSession, clearMediaSession, updatePlaybackState } from '@/lib/media-session';
 
 type PlayState = 'idle' | 'loading' | 'playing' | 'paused';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
-export default function Player() {
+interface PlayerProps {
+  onHistoryUpdate?: () => void;
+  pendingHistoryItem?: HistoryItem | null;
+  onHistoryItemConsumed?: () => void;
+}
+
+export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryItemConsumed }: PlayerProps) {
   const [input, setInput] = useState('');
   const [playState, setPlayState] = useState<PlayState>('idle');
   const [currentChunk, setCurrentChunk] = useState(0);
@@ -26,6 +34,10 @@ export default function Player() {
   const currentChunkRef = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
   const preloadedRef = useRef<Map<number, Blob>>(new Map());
+  const historyIdRef = useRef<string | null>(null);
+  const pauseResumeRef = useRef<(() => void) | null>(null);
+  const stopRef = useRef<(() => void) | null>(null);
+  const playStateRef = useRef<PlayState>('idle');
 
   const fetchVoices = useCallback(async (engine: TTSEngineType) => {
     if (engine === 'browser') {
@@ -61,10 +73,13 @@ export default function Player() {
       audioRef.current = null;
     }
     preloadedRef.current.clear();
+    historyIdRef.current = null;
+    clearMediaSession();
     setPlayState('idle');
     setCurrentChunk(0);
     setTotalChunks(0);
-  }, []);
+    onHistoryUpdate?.();
+  }, [onHistoryUpdate]);
 
   const synthesizeChunk = useCallback(
     async (text: string, signal: AbortSignal): Promise<Blob> => {
@@ -131,6 +146,11 @@ export default function Player() {
       setCurrentChunk(chunkIndex + 1);
       currentChunkRef.current = chunkIndex;
 
+      // Update history progress
+      if (historyIdRef.current) {
+        updateProgress(historyIdRef.current, chunkIndex + 1).catch(() => {});
+      }
+
       // For browser TTS, handle differently
       if (settings.engine === 'browser') {
         try {
@@ -191,37 +211,142 @@ export default function Player() {
     [settings.engine, synthesizeChunk, preloadNext]
   );
 
-  const handlePlay = useCallback(() => {
-    const text = input.trim();
-    if (!text) return;
-    setError('');
+  const isURL = (text: string) => /^https?:\/\//i.test(text);
 
+  const startPlayback = useCallback(
+    (text: string, options?: { startChunk?: number; historyId?: string; title?: string; source?: 'text' | 'url'; url?: string }) => {
+      const chunks = splitText(text);
+      chunksRef.current = chunks;
+      setTotalChunks(chunks.length);
+
+      const startChunk = options?.startChunk || 0;
+      const id = options?.historyId || crypto.randomUUID();
+      historyIdRef.current = id;
+
+      // Save to history
+      const item: HistoryItem = {
+        id,
+        title: options?.title || text.slice(0, 30).replace(/\n/g, ' '),
+        source: options?.source || 'text',
+        url: options?.url,
+        text,
+        currentChunk: startChunk,
+        totalChunks: chunks.length,
+        engine: settings.engine,
+        voice: settings.voice,
+        speed: settings.speed,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      saveHistory(item).then(() => onHistoryUpdate?.()).catch(() => {});
+
+      // Setup media session for lock screen controls
+      const displayTitle = options?.title || text.slice(0, 30).replace(/\n/g, ' ');
+      setupMediaSession({
+        title: displayTitle,
+        onPlay: () => pauseResumeRef.current?.(),
+        onPause: () => pauseResumeRef.current?.(),
+        onStop: () => stopRef.current?.(),
+      });
+
+      const abort = new AbortController();
+      abortRef.current = abort;
+
+      playChunk(startChunk, abort.signal);
+    },
+    [playChunk, settings, onHistoryUpdate]
+  );
+
+  const handlePlay = useCallback(async () => {
+    const raw = input.trim();
+    if (!raw) return;
+    setError('');
     stopPlayback();
 
-    const chunks = splitText(text);
-    chunksRef.current = chunks;
-    setTotalChunks(chunks.length);
+    if (isURL(raw)) {
+      setPlayState('loading');
+      try {
+        const res = await fetch('/api/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: raw }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || '提取失败');
+        setInput(data.content);
+        startPlayback(data.content, { title: data.title, source: 'url', url: raw });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '提取失败');
+        setPlayState('idle');
+      }
+    } else {
+      startPlayback(raw);
+    }
+  }, [input, stopPlayback, startPlayback]);
 
-    const abort = new AbortController();
-    abortRef.current = abort;
+  const loadFromHistory = useCallback(
+    (item: HistoryItem) => {
+      setInput(item.text);
+      setError('');
+      stopPlayback();
+      setSettings((prev) => ({
+        ...prev,
+        engine: item.engine,
+        voice: item.voice,
+        speed: item.speed,
+      }));
+      startPlayback(item.text, {
+        startChunk: item.currentChunk < item.totalChunks ? item.currentChunk : 0,
+        historyId: item.id,
+        title: item.title,
+        source: item.source,
+        url: item.url,
+      });
+    },
+    [stopPlayback, startPlayback]
+  );
 
-    playChunk(0, abort.signal);
-  }, [input, stopPlayback, playChunk]);
+  useEffect(() => {
+    if (pendingHistoryItem) {
+      loadFromHistory(pendingHistoryItem);
+      onHistoryItemConsumed?.();
+    }
+  }, [pendingHistoryItem, loadFromHistory, onHistoryItemConsumed]);
+
+  useEffect(() => {
+    playStateRef.current = playState;
+  }, [playState]);
 
   const handlePauseResume = useCallback(() => {
-    if (!audioRef.current) return;
-    if (playState === 'playing') {
-      audioRef.current.pause();
+    const state = playStateRef.current;
+    if (state === 'playing') {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      } else {
+        speechSynthesis.pause();
+      }
       setPlayState('paused');
-    } else if (playState === 'paused') {
-      audioRef.current.play();
+      updatePlaybackState('paused');
+    } else if (state === 'paused') {
+      if (audioRef.current) {
+        audioRef.current.play();
+      } else {
+        speechSynthesis.resume();
+      }
       setPlayState('playing');
+      updatePlaybackState('playing');
     }
-  }, [playState]);
+  }, []);
 
   const handleStop = useCallback(() => {
     stopPlayback();
   }, [stopPlayback]);
+
+  // Keep refs in sync for media session callbacks
+  useEffect(() => {
+    pauseResumeRef.current = handlePauseResume;
+    stopRef.current = handleStop;
+  }, [handlePauseResume, handleStop]);
 
   const updateSetting = <K extends keyof PlayerSettings>(key: K, value: PlayerSettings[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
