@@ -32,6 +32,15 @@ export function usePlayback(
   const pauseResumeRef = useRef<(() => void) | null>(null)
   const stopRef = useRef<(() => void) | null>(null)
   const playStateRef = useRef<PlayState>('idle')
+  const currentUrlRef = useRef<string | null>(null)
+
+  // 获取或创建持久化 Audio 元素，避免锁屏后丢失 Media Session 关联
+  const getAudio = useCallback(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio()
+    }
+    return audioRef.current
+  }, [])
 
   useEffect(() => {
     playStateRef.current = playState
@@ -42,8 +51,12 @@ export function usePlayback(
     abortRef.current = null
     if (audioRef.current) {
       audioRef.current.pause()
-      audioRef.current.src = ''
-      audioRef.current = null
+      audioRef.current.removeAttribute('src')
+      audioRef.current.load()
+    }
+    if (currentUrlRef.current) {
+      URL.revokeObjectURL(currentUrlRef.current)
+      currentUrlRef.current = null
     }
     preloadedRef.current.clear()
     historyIdRef.current = null
@@ -154,25 +167,31 @@ export function usePlayback(
 
         preloadNext(chunkIndex, signal)
 
+        // 释放上一个 object URL
+        if (currentUrlRef.current) {
+          URL.revokeObjectURL(currentUrlRef.current)
+        }
+
         const url = URL.createObjectURL(blob)
-        const audio = new Audio(url)
-        audioRef.current = audio
+        currentUrlRef.current = url
+
+        // 复用持久化 Audio 元素，保持锁屏 Media Session 关联
+        const audio = getAudio()
 
         audio.onended = () => {
-          URL.revokeObjectURL(url)
           if (!signal.aborted) {
             playChunk(chunkIndex + 1, signal)
           }
         }
 
         audio.onerror = () => {
-          URL.revokeObjectURL(url)
           if (!signal.aborted) {
             setError('音频播放失败')
             setPlayState('idle')
           }
         }
 
+        audio.src = url
         setPlayState('playing')
         await audio.play()
       } catch (e) {
@@ -181,7 +200,7 @@ export function usePlayback(
         setPlayState('idle')
       }
     },
-    [settings.engine, synthesizeChunk, preloadNext],
+    [settings.engine, synthesizeChunk, preloadNext, getAudio],
   )
 
   const startPlayback = useCallback(
