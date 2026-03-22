@@ -13,8 +13,11 @@ interface HistoryProps {
   refreshKey: number // 变化时触发重新加载
 }
 
+const COLLAPSED_COUNT = 3
+
 export default function History({ onSelect, refreshKey }: HistoryProps) {
   const [items, setItems] = useState<HistoryItem[]>([])
+  const [expanded, setExpanded] = useState(false)
 
   /** 从 IndexedDB 加载历史列表 */
   const load = useCallback(async () => {
@@ -46,7 +49,7 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
     <div className="w-full max-w-2xl mx-auto px-4 mt-8">
       <h2 className="text-sm font-medium text-zinc-500 mb-3">历史记录</h2>
       <div className="space-y-2">
-        {items.map((item) => {
+        {(expanded ? items : items.slice(0, COLLAPSED_COUNT)).map((item) => {
           const progress =
             item.totalChunks > 0
               ? Math.round((item.currentChunk / item.totalChunks) * 100)
@@ -110,6 +113,14 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
           )
         })}
       </div>
+      {items.length > COLLAPSED_COUNT && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full mt-2 py-2 text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+        >
+          {expanded ? '收起' : `展开更多（共 ${items.length} 条）`}
+        </button>
+      )}
     </div>
   )
 }
