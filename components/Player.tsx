@@ -43,7 +43,6 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   const { clipboardHint, setClipboardHint, dismissClipboardHint } =
     useClipboardDetect(playState === 'idle')
 
-  // 暴露给父组件的命令式方法：从历史记录恢复播放
   useImperativeHandle(
     ref,
     () => ({
@@ -102,29 +101,17 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
   }, [clipboardHint, setClipboardHint, handleClipboardPlay])
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-4">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+    <div className="w-full max-w-xl">
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-xs font-medium tracking-[0.2em] uppercase text-stone-400">
           TextPlayer
         </h1>
         <button
           onClick={() => setShowSettings(!showSettings)}
-          className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 focus-visible:ring-2 focus-visible:ring-zinc-400 rounded-lg transition-colors"
+          className="text-xs text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
           aria-label="设置"
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            aria-hidden="true"
-          >
-            <path d="M10 13a3 3 0 100-6 3 3 0 000 6z" />
-            <path d="M16.5 10a6.5 6.5 0 01-.3 2l1.8 1.4-2 3.4-2.1-.7a6.5 6.5 0 01-1.7 1L12 19H8l-.2-1.9a6.5 6.5 0 01-1.7-1l-2.1.7-2-3.4L3.8 12a6.5 6.5 0 010-4L2 6.6l2-3.4 2.1.7a6.5 6.5 0 011.7-1L8 1h4l.2 1.9a6.5 6.5 0 011.7 1l2.1-.7 2 3.4L16.2 8a6.5 6.5 0 01.3 2z" />
-          </svg>
+          {showSettings ? '完成' : '设置'}
         </button>
       </div>
 
@@ -146,22 +133,16 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
         />
       )}
 
-      {/* Input */}
       <textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        placeholder="粘贴文本或 URL，然后点击播放…"
+        placeholder="粘贴文本或 URL…"
         aria-label="输入文本或 URL"
-        rows={6}
-        className="w-full p-4 text-base rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:focus-visible:ring-zinc-600 placeholder:text-zinc-400"
+        rows={8}
+        className="w-full py-4 text-base leading-relaxed bg-transparent border-b border-stone-200 dark:border-stone-800 resize-none focus:outline-none placeholder:text-stone-300 dark:placeholder:text-stone-700"
       />
 
-      {/* Error */}
-      {error && (
-        <div className="mt-2 p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg">
-          {error}
-        </div>
-      )}
+      {error && <p className="mt-3 text-sm text-red-500/80">{error}</p>}
 
       <PlaybackControls
         playState={playState}

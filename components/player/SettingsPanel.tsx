@@ -25,18 +25,18 @@ export default function SettingsPanel({
   onSettingChange,
 }: SettingsPanelProps) {
   return (
-    <div className="mb-4 p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 space-y-3">
-      <div>
-        <label className="block text-sm text-zinc-500 mb-1">语音引擎</label>
-        <div className="flex gap-2 flex-wrap">
+    <div className="mb-6 space-y-4 text-sm">
+      <div className="flex items-baseline gap-4">
+        <span className="text-stone-400 shrink-0">引擎</span>
+        <div className="flex gap-3 flex-wrap">
           {TTS_ENGINES.map((e) => (
             <button
               key={e.type}
               onClick={() => onEngineChange(e.type)}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              className={`transition-colors ${
                 settings.engine === e.type
-                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                  : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                  ? 'underline underline-offset-4 decoration-stone-400'
+                  : 'text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'
               }`}
             >
               {e.label}
@@ -46,13 +46,13 @@ export default function SettingsPanel({
       </div>
 
       {settings.engine !== 'browser' && (
-        <div>
-          <label className="block text-sm text-zinc-500 mb-1">语音</label>
+        <div className="flex items-baseline gap-4">
+          <span className="text-stone-400 shrink-0">语音</span>
           <select
             value={settings.voice}
             onChange={(e) => onSettingChange('voice', e.target.value)}
             disabled={loadingVoices}
-            className="w-full px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 disabled:opacity-50"
+            className="flex-1 bg-transparent text-sm py-1 border-b border-stone-200 dark:border-stone-800 focus:outline-none disabled:opacity-40 cursor-pointer"
           >
             {loadingVoices ? (
               <option>加载中…</option>
@@ -71,19 +71,17 @@ export default function SettingsPanel({
         </div>
       )}
 
-      <div>
-        <label className="block text-sm text-zinc-500 mb-1">
-          语速 {settings.speed}x
-        </label>
-        <div className="flex gap-2">
+      <div className="flex items-baseline gap-4">
+        <span className="text-stone-400 shrink-0">语速</span>
+        <div className="flex gap-3">
           {SPEEDS.map((s) => (
             <button
               key={s}
               onClick={() => onSettingChange('speed', s)}
-              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              className={`transition-colors ${
                 settings.speed === s
-                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                  : 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700'
+                  ? 'underline underline-offset-4 decoration-stone-400'
+                  : 'text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'
               }`}
             >
               {s}x
