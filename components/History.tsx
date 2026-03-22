@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { getHistory, deleteHistory, type HistoryItem } from '@/lib/storage'
 
 interface HistoryProps {
@@ -13,11 +13,6 @@ const COLLAPSED_COUNT = 3
 export default function History({ onSelect, refreshKey }: HistoryProps) {
   const [items, setItems] = useState<HistoryItem[]>([])
   const [expanded, setExpanded] = useState(false)
-
-  const load = useCallback(async () => {
-    const list = await getHistory()
-    setItems(list)
-  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -32,7 +27,7 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation()
     await deleteHistory(id)
-    load()
+    setItems((prev) => prev.filter((item) => item.id !== id))
   }
 
   if (items.length === 0) return null

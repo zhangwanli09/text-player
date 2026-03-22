@@ -5,6 +5,9 @@ import type { TTSEngineType } from '@/lib/tts/types'
 // 允许最长 60 秒的合成时间（Vercel Serverless 超时配置）
 export const maxDuration = 60
 
+const MAX_TEXT_LENGTH = 5000
+const VALID_ENGINES: TTSEngineType[] = ['edge', 'openai']
+
 /**
  * TTS 语音合成 API
  * POST /api/tts
@@ -25,6 +28,17 @@ export async function POST(request: Request) {
 
   if (!text) {
     return Response.json({ error: 'text is required' }, { status: 400 })
+  }
+
+  if (text.length > MAX_TEXT_LENGTH) {
+    return Response.json(
+      { error: `text exceeds max length of ${MAX_TEXT_LENGTH}` },
+      { status: 400 },
+    )
+  }
+
+  if (!VALID_ENGINES.includes(engine)) {
+    return Response.json({ error: 'invalid engine' }, { status: 400 })
   }
 
   try {

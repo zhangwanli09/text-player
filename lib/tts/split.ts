@@ -38,7 +38,7 @@ export function splitText(text: string): string[] {
         current = cleaned
       } else {
         // 段落过长，按句子标点进一步拆分
-        const sentences = cleaned.split(/(?<=[。！？.!?\n])/)
+        const sentences = cleaned.split(/(?<=[。！？.!?\n])/).filter(Boolean)
         current = ''
         for (const sentence of sentences) {
           if (current.length + sentence.length <= MAX_CHUNK_SIZE) {

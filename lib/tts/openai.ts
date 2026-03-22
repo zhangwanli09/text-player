@@ -13,6 +13,8 @@ function getClient() {
   return _client
 }
 
+const DEFAULT_VOICE = 'marin'
+
 // OpenAI 可用语音列表及其中文描述
 const OPENAI_VOICES = [
   { id: 'marin', name: 'Marin 温暖', gender: '女声' },
@@ -42,10 +44,14 @@ export async function synthesizeOpenAITTS(
   voice: string,
   speed: number,
 ): Promise<Uint8Array> {
+  const validVoice = OPENAI_VOICES.some((v) => v.id === voice)
+    ? voice
+    : DEFAULT_VOICE
+
   const response = await getClient().audio.speech.create({
     model: 'gpt-4o-mini-tts',
     input: text,
-    voice: voice as 'alloy',
+    voice: validVoice as 'alloy',
     instructions: '用温暖自然的语气朗读，语速平稳',
     response_format: 'mp3',
     speed: Math.max(0.25, Math.min(4.0, speed)),

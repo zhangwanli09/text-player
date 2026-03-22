@@ -17,6 +17,10 @@ export function useVoices(engine: TTSEngineType) {
     setLoadingVoices(true)
     try {
       const res = await fetch(`/api/tts/voices?engine=${eng}`)
+      if (!res.ok) {
+        setVoices([])
+        return
+      }
       const data = await res.json()
       setVoices(data)
     } catch {

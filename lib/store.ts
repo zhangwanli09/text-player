@@ -24,11 +24,30 @@ const DEFAULT_SETTINGS: PlayerSettings = {
  * 从 localStorage 加载用户设置
  * SSR 环境下返回默认值，解析失败时也回退到默认值
  */
+const VALID_ENGINES: TTSEngineType[] = ['edge', 'openai', 'browser']
+
 export function loadSettings(): PlayerSettings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS
   try {
     const raw = localStorage.getItem(SETTINGS_KEY)
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) }
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return {
+        engine: VALID_ENGINES.includes(parsed.engine)
+          ? parsed.engine
+          : DEFAULT_SETTINGS.engine,
+        voice:
+          typeof parsed.voice === 'string' && parsed.voice
+            ? parsed.voice
+            : DEFAULT_SETTINGS.voice,
+        speed:
+          typeof parsed.speed === 'number' &&
+          parsed.speed >= 0.25 &&
+          parsed.speed <= 4
+            ? parsed.speed
+            : DEFAULT_SETTINGS.speed,
+      }
+    }
   } catch {}
   return DEFAULT_SETTINGS
 }
