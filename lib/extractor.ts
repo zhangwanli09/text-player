@@ -1,9 +1,10 @@
 /**
  * 网页正文提取模块
  * 使用 Mozilla Readability 算法从任意网页 URL 中提取正文文本
+ * 使用 linkedom 替代 JSDOM 以兼容 Vercel Serverless 环境
  */
 import { Readability } from '@mozilla/readability'
-import { JSDOM } from 'jsdom'
+import { parseHTML } from 'linkedom'
 
 export interface ExtractResult {
   title: string // 文章标题
@@ -28,7 +29,7 @@ function stripHtml(html: string): string {
  * 从 URL 抓取网页并提取正文
  * 1. 使用浏览器 UA 请求网页 HTML
  * 2. 清理无用标签（script/style 等）以减小体积
- * 3. 通过 JSDOM 解析 HTML 为 DOM
+ * 3. 通过 linkedom 解析 HTML 为 DOM
  * 4. 通过 Readability 提取正文（去除导航、广告等干扰元素）
  */
 export async function extractFromURL(url: string): Promise<ExtractResult> {
@@ -40,7 +41,7 @@ export async function extractFromURL(url: string): Promise<ExtractResult> {
       'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
     },
     redirect: 'follow',
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(15000),
   })
 
   if (!res.ok) {
@@ -55,8 +56,8 @@ export async function extractFromURL(url: string): Promise<ExtractResult> {
 
   const html = stripHtml(rawHtml)
 
-  const dom = new JSDOM(html, { url })
-  const reader = new Readability(dom.window.document)
+  const { document } = parseHTML(html)
+  const reader = new Readability(document)
   const article = reader.parse()
 
   if (!article || !article.textContent) {
