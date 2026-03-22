@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { TTS_ENGINES, type TTSEngineType } from '@/lib/tts/types'
 import type { Voice } from '@/lib/tts/types'
 import type { PlayerSettings } from '@/lib/store'
@@ -17,7 +18,7 @@ interface SettingsPanelProps {
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2]
 
-export default function SettingsPanel({
+export default memo(function SettingsPanel({
   settings,
   voices,
   loadingVoices,
@@ -91,4 +92,4 @@ export default function SettingsPanel({
       </div>
     </div>
   )
-}
+})

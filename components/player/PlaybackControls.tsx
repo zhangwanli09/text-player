@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import type { PlayState } from '@/hooks/usePlayback'
 
 interface PlaybackControlsProps {
@@ -12,7 +13,7 @@ interface PlaybackControlsProps {
   onStop: () => void
 }
 
-export default function PlaybackControls({
+export default memo(function PlaybackControls({
   playState,
   inputEmpty,
   currentChunk,
@@ -117,4 +118,4 @@ export default function PlaybackControls({
       )}
     </div>
   )
-}
+})

@@ -72,13 +72,22 @@ export async function getHistory(): Promise<HistoryItem[]> {
   const db = await getDB()
   const items = await db.getAllFromIndex(STORE_NAME, 'updatedAt')
   const cutoff = Date.now() - THIRTY_DAYS_MS
-  const expired = items.filter((item) => item.updatedAt < cutoff)
-  if (expired.length > 0) {
-    const tx = db.transaction(STORE_NAME, 'readwrite')
-    await Promise.all(expired.map((item) => tx.store.delete(item.id)))
-    await tx.done
+  const valid: HistoryItem[] = []
+  const expiredIds: string[] = []
+  for (const item of items) {
+    if (item.updatedAt < cutoff) {
+      expiredIds.push(item.id)
+    } else {
+      valid.push(item)
+    }
   }
-  return items.filter((item) => item.updatedAt >= cutoff).reverse()
+  // 后台清理过期记录，不阻塞返回
+  if (expiredIds.length > 0) {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    for (const id of expiredIds) tx.store.delete(id)
+    tx.done.catch(() => {})
+  }
+  return valid.reverse()
 }
 
 /** 删除指定历史记录 */

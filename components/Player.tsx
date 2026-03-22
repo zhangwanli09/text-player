@@ -1,6 +1,13 @@
 'use client'
 
-import { useState, useCallback, useImperativeHandle, forwardRef } from 'react'
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  forwardRef,
+} from 'react'
 import { loadSettings, saveSettings, type PlayerSettings } from '@/lib/store'
 import { TTS_ENGINES, type TTSEngineType } from '@/lib/tts/types'
 import type { HistoryItem } from '@/lib/storage'
@@ -89,9 +96,14 @@ const Player = forwardRef<PlayerHandle, PlayerProps>(function Player(
     })
   }
 
+  const inputRef = useRef(input)
+  useEffect(() => {
+    inputRef.current = input
+  }, [input])
+
   const onPlay = useCallback(() => {
-    handlePlay(input, setInput)
-  }, [input, handlePlay])
+    handlePlay(inputRef.current, setInput)
+  }, [handlePlay])
 
   const onClipboardPlay = useCallback(() => {
     if (!clipboardHint?.url) return

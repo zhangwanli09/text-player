@@ -42,9 +42,7 @@ export function usePlayback(
     return audioRef.current
   }, [])
 
-  useEffect(() => {
-    playStateRef.current = playState
-  }, [playState])
+  playStateRef.current = playState
 
   const stopPlayback = useCallback(() => {
     abortRef.current?.abort()
