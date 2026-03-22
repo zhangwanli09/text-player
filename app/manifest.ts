@@ -1,4 +1,4 @@
-import type { MetadataRoute } from 'next';
+import type { MetadataRoute } from 'next'
 
 /**
  * PWA Web App Manifest 配置
@@ -25,5 +25,5 @@ export default function manifest(): MetadataRoute.Manifest {
         type: 'image/png',
       },
     ],
-  };
+  }
 }

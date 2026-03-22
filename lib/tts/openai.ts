@@ -3,8 +3,8 @@
  * 使用 OpenAI gpt-4o-mini-tts 模型进行语音合成
  * 需要在环境变量中配置 OPENAI_API_KEY
  */
-import OpenAI from 'openai';
-import type { Voice } from './types';
+import OpenAI from 'openai'
+import type { Voice } from './types'
 
 // OpenAI 可用语音列表及其中文描述
 const OPENAI_VOICES = [
@@ -21,7 +21,7 @@ const OPENAI_VOICES = [
   { id: 'onyx', name: 'Onyx 浑厚', gender: '男声' },
   { id: 'fable', name: 'Fable 故事', gender: '男声' },
   { id: 'verse', name: 'Verse 优雅', gender: '女声' },
-];
+]
 
 /**
  * 调用 OpenAI TTS API 合成语音
@@ -33,9 +33,9 @@ const OPENAI_VOICES = [
 export async function synthesizeOpenAITTS(
   text: string,
   voice: string,
-  speed: number
+  speed: number,
 ): Promise<Uint8Array> {
-  const client = new OpenAI();
+  const client = new OpenAI()
 
   const response = await client.audio.speech.create({
     model: 'gpt-4o-mini-tts',
@@ -44,10 +44,10 @@ export async function synthesizeOpenAITTS(
     instructions: '用温暖自然的语气朗读，语速平稳',
     response_format: 'mp3',
     speed: Math.max(0.25, Math.min(4.0, speed)),
-  } as Parameters<typeof client.audio.speech.create>[0]);
+  } as Parameters<typeof client.audio.speech.create>[0])
 
-  const arrayBuffer = await response.arrayBuffer();
-  return new Uint8Array(arrayBuffer);
+  const arrayBuffer = await response.arrayBuffer()
+  return new Uint8Array(arrayBuffer)
 }
 
 /** 返回 OpenAI 可用语音列表（多语言支持） */
@@ -57,5 +57,5 @@ export function getOpenAIVoices(): Voice[] {
     name: v.name,
     lang: 'multi',
     gender: v.gender,
-  }));
+  }))
 }

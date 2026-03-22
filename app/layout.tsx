@@ -1,32 +1,32 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next'
+import { Geist, Geist_Mono } from 'next/font/google'
+import './globals.css'
 
 // 配置 Google 字体：Geist 无衬线体和等宽体，通过 CSS 变量注入
 const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+})
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+})
 
 // 页面元数据：标题、描述、PWA 配置
 export const metadata: Metadata = {
-  title: "TextPlayer - 文本播放器",
-  description: "粘贴文本或 URL，用自然的声音播放",
+  title: 'TextPlayer - 文本播放器',
+  description: '粘贴文本或 URL，用自然的声音播放',
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
-    title: "TextPlayer",
+    statusBarStyle: 'default',
+    title: 'TextPlayer',
   },
   // 禁止自动检测电话号码
   formatDetection: {
     telephone: false,
   },
-};
+}
 
 /**
  * 根布局组件
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
   return (
     <html
@@ -46,5 +46,5 @@ export default function RootLayout({
         {children}
       </body>
     </html>
-  );
+  )
 }

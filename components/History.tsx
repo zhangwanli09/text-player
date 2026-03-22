@@ -3,42 +3,44 @@
  * 展示所有历史记录，支持点击恢复播放和删除
  * 显示播放进度条、来源类型和相对时间
  */
-'use client';
+'use client'
 
-import { useState, useEffect, useCallback } from 'react';
-import {
-  getHistory,
-  deleteHistory,
-  type HistoryItem,
-} from '@/lib/storage';
+import { useState, useEffect, useCallback } from 'react'
+import { getHistory, deleteHistory, type HistoryItem } from '@/lib/storage'
 
 interface HistoryProps {
-  onSelect: (item: HistoryItem) => void; // 用户选中某条历史时的回调
-  refreshKey: number;                    // 变化时触发重新加载
+  onSelect: (item: HistoryItem) => void // 用户选中某条历史时的回调
+  refreshKey: number // 变化时触发重新加载
 }
 
 export default function History({ onSelect, refreshKey }: HistoryProps) {
-  const [items, setItems] = useState<HistoryItem[]>([]);
+  const [items, setItems] = useState<HistoryItem[]>([])
 
   /** 从 IndexedDB 加载历史列表 */
   const load = useCallback(async () => {
-    const list = await getHistory();
-    setItems(list);
-  }, []);
+    const list = await getHistory()
+    setItems(list)
+  }, [])
 
   // 初始加载 + refreshKey 变化时重新加载
   useEffect(() => {
-    load();
-  }, [load, refreshKey]);
+    let cancelled = false
+    getHistory().then((list) => {
+      if (!cancelled) setItems(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshKey])
 
   /** 删除单条历史记录，阻止事件冒泡以避免触发 onSelect */
   const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    await deleteHistory(id);
-    load();
-  };
+    e.stopPropagation()
+    await deleteHistory(id)
+    load()
+  }
 
-  if (items.length === 0) return null;
+  if (items.length === 0) return null
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 mt-8">
@@ -48,8 +50,8 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
           const progress =
             item.totalChunks > 0
               ? Math.round((item.currentChunk / item.totalChunks) * 100)
-              : 0;
-          const done = item.currentChunk >= item.totalChunks;
+              : 0
+          const done = item.currentChunk >= item.totalChunks
 
           return (
             <div
@@ -57,7 +59,12 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
               role="button"
               tabIndex={0}
               onClick={() => onSelect(item)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(item); } }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onSelect(item)
+                }
+              }}
               className="w-full text-left p-3 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors group cursor-pointer"
             >
               <div className="flex items-start justify-between gap-2">
@@ -78,7 +85,14 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
                   className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                   title="删除"
                 >
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 14 14"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
                     <path d="M3 3l8 8M11 3l-8 8" />
                   </svg>
                 </button>
@@ -92,24 +106,24 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
                 </div>
               )}
             </div>
-          );
+          )
         })}
       </div>
     </div>
-  );
+  )
 }
 
 /** 将时间戳格式化为相对时间（刚刚/分钟前/小时前）或日期（月日） */
 function formatTime(ts: number): string {
-  const now = Date.now();
-  const diff = now - ts;
+  const now = Date.now()
+  const diff = now - ts
 
-  if (diff < 60000) return '刚刚';
-  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
 
-  const date = new Date(ts);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  return `${month}月${day}日`;
+  const date = new Date(ts)
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  return `${month}月${day}日`
 }
