@@ -26,6 +26,12 @@ const SPEEDS = [0.75, 1, 1.25, 1.5, 2]
 // URL 匹配正则，提升到模块级别避免重复创建
 const URL_REGEX = /^https?:\/\//i
 
+/** 剪贴板检测到的 URL 信息 */
+interface ClipboardHint {
+  url: string
+  dismissed: boolean
+}
+
 interface PlayerProps {
   onHistoryUpdate?: () => void // 历史记录变更时的回调
   pendingHistoryItem?: HistoryItem | null // 待恢复播放的历史条目
@@ -47,6 +53,7 @@ export default function Player({
   const [error, setError] = useState('') // 错误信息
   const [voices, setVoices] = useState<Voice[]>([]) // 当前引擎的可用语音列表
   const [loadingVoices, setLoadingVoices] = useState(false) // 语音列表加载中
+  const [clipboardHint, setClipboardHint] = useState<ClipboardHint | null>(null) // 剪贴板检测到的 URL
 
   // ===== Refs（不触发重渲染的可变引用） =====
   const audioRef = useRef<HTMLAudioElement | null>(null) // 当前 Audio 元素
@@ -58,6 +65,47 @@ export default function Player({
   const pauseResumeRef = useRef<(() => void) | null>(null) // 暂停/继续回调（供 Media Session 使用）
   const stopRef = useRef<(() => void) | null>(null) // 停止回调（供 Media Session 使用）
   const playStateRef = useRef<PlayState>('idle') // 播放状态的 ref 版本（回调中读取最新值）
+  const lastClipboardUrlRef = useRef<string>('') // 上次检测到的剪贴板 URL（避免重复提示）
+
+  /**
+   * 剪贴板自动检测：页面获得焦点时读取剪贴板内容，
+   * 若包含 URL 且不同于当前输入和上次提示，则显示提示条
+   */
+  useEffect(() => {
+    const detectClipboard = async () => {
+      // 播放中不打扰
+      if (playStateRef.current !== 'idle') return
+      try {
+        const text = await navigator.clipboard.readText()
+        const trimmed = text?.trim()
+        if (
+          trimmed &&
+          URL_REGEX.test(trimmed) &&
+          trimmed !== lastClipboardUrlRef.current
+        ) {
+          lastClipboardUrlRef.current = trimmed
+          setClipboardHint({ url: trimmed, dismissed: false })
+        }
+      } catch {
+        // 权限不足或不支持，静默忽略
+      }
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        detectClipboard()
+      }
+    }
+
+    // 初次加载和页面切回时检测
+    detectClipboard()
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', detectClipboard)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', detectClipboard)
+    }
+  }, [])
 
   /** 根据引擎类型从服务端获取可用语音列表 */
   const fetchVoices = useCallback(async (engine: TTSEngineType) => {
@@ -410,6 +458,42 @@ export default function Player({
     stopRef.current = handleStop
   }, [handlePauseResume, handleStop])
 
+  /** 使用剪贴板检测到的 URL：填入输入框并开始播放 */
+  const handleClipboardPlay = useCallback(() => {
+    if (!clipboardHint?.url) return
+    setInput(clipboardHint.url)
+    setClipboardHint(null)
+    // 延迟触发播放，确保 input 已更新
+    const url = clipboardHint.url
+    setError('')
+    stopPlayback()
+    setPlayState('loading')
+    fetch('/api/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok) throw new Error(data.error || '提取失败')
+        setInput(data.content)
+        startPlayback(data.content, {
+          title: data.title,
+          source: 'url',
+          url,
+        })
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : '提取失败')
+        setPlayState('idle')
+      })
+  }, [clipboardHint, stopPlayback, startPlayback])
+
+  /** 关闭剪贴板提示 */
+  const dismissClipboardHint = useCallback(() => {
+    setClipboardHint(null)
+  }, [])
+
   /** 更新单个设置项并持久化 */
   const updateSetting = <K extends keyof PlayerSettings>(
     key: K,
@@ -533,6 +617,51 @@ export default function Player({
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Clipboard Hint */}
+      {clipboardHint && !clipboardHint.dismissed && (
+        <div className="mb-3 flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-sm">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            className="shrink-0 text-blue-500"
+            aria-hidden="true"
+          >
+            <rect x="4" y="1" width="8" height="3" rx="1" />
+            <rect x="2" y="3" width="12" height="12" rx="2" />
+          </svg>
+          <span className="flex-1 truncate text-blue-700 dark:text-blue-300">
+            检测到链接：{clipboardHint.url}
+          </span>
+          <button
+            onClick={handleClipboardPlay}
+            className="shrink-0 px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            播放
+          </button>
+          <button
+            onClick={dismissClipboardHint}
+            className="shrink-0 p-1 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200 transition-colors"
+            aria-label="关闭"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 14 14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              aria-hidden="true"
+            >
+              <path d="M3 3l8 8M11 3l-8 8" />
+            </svg>
+          </button>
         </div>
       )}
 
