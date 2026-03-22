@@ -25,8 +25,8 @@
 ## 快速开始
 
 ```bash
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
 打开 [http://localhost:3000](http://localhost:3000) 即可使用。
