@@ -1,5 +1,9 @@
 import type { MetadataRoute } from 'next';
 
+/**
+ * PWA Web App Manifest 配置
+ * 使应用可以被添加到手机桌面，以独立窗口模式运行
+ */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'TextPlayer - 文本播放器',

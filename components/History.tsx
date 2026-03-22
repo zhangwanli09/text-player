@@ -1,3 +1,8 @@
+/**
+ * 播放历史列表组件
+ * 展示所有历史记录，支持点击恢复播放和删除
+ * 显示播放进度条、来源类型和相对时间
+ */
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -8,22 +13,25 @@ import {
 } from '@/lib/storage';
 
 interface HistoryProps {
-  onSelect: (item: HistoryItem) => void;
-  refreshKey: number;
+  onSelect: (item: HistoryItem) => void; // 用户选中某条历史时的回调
+  refreshKey: number;                    // 变化时触发重新加载
 }
 
 export default function History({ onSelect, refreshKey }: HistoryProps) {
   const [items, setItems] = useState<HistoryItem[]>([]);
 
+  /** 从 IndexedDB 加载历史列表 */
   const load = useCallback(async () => {
     const list = await getHistory();
     setItems(list);
   }, []);
 
+  // 初始加载 + refreshKey 变化时重新加载
   useEffect(() => {
     load();
   }, [load, refreshKey]);
 
+  /** 删除单条历史记录，阻止事件冒泡以避免触发 onSelect */
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     await deleteHistory(id);
@@ -91,6 +99,7 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
   );
 }
 
+/** 将时间戳格式化为相对时间（刚刚/分钟前/小时前）或日期（月日） */
 function formatTime(ts: number): string {
   const now = Date.now();
   const diff = now - ts;

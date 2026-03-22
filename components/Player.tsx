@@ -1,3 +1,8 @@
+/**
+ * 播放器核心组件
+ * 负责文本输入、TTS 合成、音频播放、分段管理、暂停/继续/停止控制、
+ * URL 提取、设置面板、历史记录交互和锁屏 Media Session 集成
+ */
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
@@ -8,37 +13,42 @@ import type { Voice } from '@/lib/tts/types';
 import { saveHistory, updateProgress, type HistoryItem } from '@/lib/storage';
 import { setupMediaSession, clearMediaSession, updatePlaybackState } from '@/lib/media-session';
 
+/** 播放状态：空闲 | 加载中 | 播放中 | 已暂停 */
 type PlayState = 'idle' | 'loading' | 'playing' | 'paused';
 
+// 可选的播放速度档位
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
 
 interface PlayerProps {
-  onHistoryUpdate?: () => void;
-  pendingHistoryItem?: HistoryItem | null;
-  onHistoryItemConsumed?: () => void;
+  onHistoryUpdate?: () => void;          // 历史记录变更时的回调
+  pendingHistoryItem?: HistoryItem | null; // 待恢复播放的历史条目
+  onHistoryItemConsumed?: () => void;    // 历史条目已被消费的回调
 }
 
 export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryItemConsumed }: PlayerProps) {
-  const [input, setInput] = useState('');
-  const [playState, setPlayState] = useState<PlayState>('idle');
-  const [currentChunk, setCurrentChunk] = useState(0);
-  const [totalChunks, setTotalChunks] = useState(0);
-  const [settings, setSettings] = useState<PlayerSettings>(loadSettings);
-  const [showSettings, setShowSettings] = useState(false);
-  const [error, setError] = useState('');
-  const [voices, setVoices] = useState<Voice[]>([]);
-  const [loadingVoices, setLoadingVoices] = useState(false);
+  // ===== 状态 =====
+  const [input, setInput] = useState('');                           // 用户输入的文本或 URL
+  const [playState, setPlayState] = useState<PlayState>('idle');    // 当前播放状态
+  const [currentChunk, setCurrentChunk] = useState(0);              // 当前播放的分段序号（从 1 开始显示）
+  const [totalChunks, setTotalChunks] = useState(0);                // 总分段数
+  const [settings, setSettings] = useState<PlayerSettings>(loadSettings); // 用户设置（引擎/语音/语速）
+  const [showSettings, setShowSettings] = useState(false);          // 设置面板是否展开
+  const [error, setError] = useState('');                           // 错误信息
+  const [voices, setVoices] = useState<Voice[]>([]);                // 当前引擎的可用语音列表
+  const [loadingVoices, setLoadingVoices] = useState(false);        // 语音列表加载中
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const chunksRef = useRef<string[]>([]);
-  const currentChunkRef = useRef(0);
-  const abortRef = useRef<AbortController | null>(null);
-  const preloadedRef = useRef<Map<number, Blob>>(new Map());
-  const historyIdRef = useRef<string | null>(null);
-  const pauseResumeRef = useRef<(() => void) | null>(null);
-  const stopRef = useRef<(() => void) | null>(null);
-  const playStateRef = useRef<PlayState>('idle');
+  // ===== Refs（不触发重渲染的可变引用） =====
+  const audioRef = useRef<HTMLAudioElement | null>(null);           // 当前 Audio 元素
+  const chunksRef = useRef<string[]>([]);                           // 分段后的文本数组
+  const currentChunkRef = useRef(0);                                // 当前分段索引（ref 版本）
+  const abortRef = useRef<AbortController | null>(null);            // 用于取消播放的 AbortController
+  const preloadedRef = useRef<Map<number, Blob>>(new Map());        // 预加载的音频缓存（分段索引 → Blob）
+  const historyIdRef = useRef<string | null>(null);                 // 当前播放对应的历史记录 ID
+  const pauseResumeRef = useRef<(() => void) | null>(null);         // 暂停/继续回调（供 Media Session 使用）
+  const stopRef = useRef<(() => void) | null>(null);                // 停止回调（供 Media Session 使用）
+  const playStateRef = useRef<PlayState>('idle');                    // 播放状态的 ref 版本（回调中读取最新值）
 
+  /** 根据引擎类型从服务端获取可用语音列表 */
   const fetchVoices = useCallback(async (engine: TTSEngineType) => {
     if (engine === 'browser') {
       setVoices([]);
@@ -56,14 +66,17 @@ export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryI
     }
   }, []);
 
+  // 设置变更时自动持久化到 localStorage
   useEffect(() => {
     saveSettings(settings);
   }, [settings]);
 
+  // 引擎切换时重新加载对应的语音列表
   useEffect(() => {
     fetchVoices(settings.engine);
   }, [settings.engine, fetchVoices]);
 
+  /** 停止播放：取消请求、停止音频、清理缓存和 Media Session */
   const stopPlayback = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
@@ -81,6 +94,10 @@ export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryI
     onHistoryUpdate?.();
   }, [onHistoryUpdate]);
 
+  /**
+   * 合成单个文本分段的音频
+   * 浏览器引擎直接使用 Web Speech API，其他引擎通过服务端 API 合成
+   */
   const synthesizeChunk = useCallback(
     async (text: string, signal: AbortSignal): Promise<Blob> => {
       if (settings.engine === 'browser') {
@@ -120,6 +137,7 @@ export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryI
     [settings]
   );
 
+  /** 预加载下一个分段的音频，减少播放间隔等待时间 */
   const preloadNext = useCallback(
     (chunkIndex: number, signal: AbortSignal) => {
       const nextIndex = chunkIndex + 1;
@@ -136,6 +154,10 @@ export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryI
     [synthesizeChunk]
   );
 
+  /**
+   * 播放指定分段
+   * 递归调用自身以连续播放所有分段，同时触发下一段预加载
+   */
   const playChunk = useCallback(
     async (chunkIndex: number, signal: AbortSignal) => {
       if (signal.aborted || chunkIndex >= chunksRef.current.length) {
@@ -211,8 +233,13 @@ export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryI
     [settings.engine, synthesizeChunk, preloadNext]
   );
 
+  /** 判断输入是否为 URL */
   const isURL = (text: string) => /^https?:\/\//i.test(text);
 
+  /**
+   * 开始播放文本
+   * 将文本分段、保存历史记录、设置 Media Session、启动分段播放
+   */
   const startPlayback = useCallback(
     (text: string, options?: { startChunk?: number; historyId?: string; title?: string; source?: 'text' | 'url'; url?: string }) => {
       const chunks = splitText(text);
@@ -257,6 +284,7 @@ export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryI
     [playChunk, settings, onHistoryUpdate]
   );
 
+  /** 处理播放按钮点击：如果是 URL 则先提取正文，否则直接播放 */
   const handlePlay = useCallback(async () => {
     const raw = input.trim();
     if (!raw) return;
@@ -284,6 +312,7 @@ export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryI
     }
   }, [input, stopPlayback, startPlayback]);
 
+  /** 从历史记录恢复播放：恢复设置并从上次进度继续 */
   const loadFromHistory = useCallback(
     (item: HistoryItem) => {
       setInput(item.text);
@@ -306,6 +335,7 @@ export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryI
     [stopPlayback, startPlayback]
   );
 
+  // 当收到来自 History 组件选中的历史条目时，加载并播放
   useEffect(() => {
     if (pendingHistoryItem) {
       loadFromHistory(pendingHistoryItem);
@@ -313,10 +343,12 @@ export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryI
     }
   }, [pendingHistoryItem, loadFromHistory, onHistoryItemConsumed]);
 
+  // 同步 playState 到 ref，供不依赖 React 重渲染的回调读取
   useEffect(() => {
     playStateRef.current = playState;
   }, [playState]);
 
+  /** 切换暂停/继续状态，同时更新 Media Session 播放状态 */
   const handlePauseResume = useCallback(() => {
     const state = playStateRef.current;
     if (state === 'playing') {
@@ -342,16 +374,18 @@ export default function Player({ onHistoryUpdate, pendingHistoryItem, onHistoryI
     stopPlayback();
   }, [stopPlayback]);
 
-  // Keep refs in sync for media session callbacks
+  // 同步回调函数到 ref，确保 Media Session 回调始终调用最新版本
   useEffect(() => {
     pauseResumeRef.current = handlePauseResume;
     stopRef.current = handleStop;
   }, [handlePauseResume, handleStop]);
 
+  /** 更新单个设置项 */
   const updateSetting = <K extends keyof PlayerSettings>(key: K, value: PlayerSettings[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
+  /** 切换 TTS 引擎，同时重置为该引擎的默认语音 */
   const handleEngineChange = (engine: TTSEngineType) => {
     const config = TTS_ENGINES.find((e) => e.type === engine);
     setSettings((prev) => ({

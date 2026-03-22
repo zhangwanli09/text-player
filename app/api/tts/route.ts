@@ -2,8 +2,14 @@ import { synthesizeEdgeTTS } from '@/lib/tts/edge';
 import { synthesizeOpenAITTS } from '@/lib/tts/openai';
 import type { TTSEngineType } from '@/lib/tts/types';
 
+// 允许最长 60 秒的合成时间（Vercel Serverless 超时配置）
 export const maxDuration = 60;
 
+/**
+ * TTS 语音合成 API
+ * POST /api/tts
+ * 接收文本、语音、语速和引擎参数，返回 MP3 音频二进制数据
+ */
 export async function POST(request: Request) {
   const { text, voice, speed = 1, engine = 'edge' } = (await request.json()) as {
     text: string;
@@ -19,12 +25,14 @@ export async function POST(request: Request) {
   try {
     let audio: Uint8Array;
 
+    // 根据引擎类型调用对应的 TTS 服务
     if (engine === 'openai') {
       audio = await synthesizeOpenAITTS(text, voice || 'marin', speed);
     } else {
       audio = await synthesizeEdgeTTS(text, voice || 'zh-CN-XiaoxiaoNeural', speed);
     }
 
+    // 以音频流形式返回合成结果
     return new Response(audio.buffer as ArrayBuffer, {
       headers: {
         'Content-Type': 'audio/mpeg',

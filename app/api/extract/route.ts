@@ -1,7 +1,14 @@
 import { extractFromURL } from '@/lib/extractor';
 
+// 允许最长 30 秒抓取网页内容
 export const maxDuration = 30;
 
+/**
+ * URL 正文提取 API
+ * POST /api/extract
+ * 接收 URL，抓取网页并使用 Readability 提取正文内容
+ * 返回 { title, content }
+ */
 export async function POST(request: Request) {
   const { url } = (await request.json()) as { url: string };
 
@@ -9,6 +16,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'url is required' }, { status: 400 });
   }
 
+  // 验证 URL 格式是否合法
   try {
     new URL(url);
   } catch {

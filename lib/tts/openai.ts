@@ -1,6 +1,12 @@
+/**
+ * OpenAI TTS 引擎
+ * 使用 OpenAI gpt-4o-mini-tts 模型进行语音合成
+ * 需要在环境变量中配置 OPENAI_API_KEY
+ */
 import OpenAI from 'openai';
 import type { Voice } from './types';
 
+// OpenAI 可用语音列表及其中文描述
 const OPENAI_VOICES = [
   { id: 'marin', name: 'Marin 温暖', gender: '女声' },
   { id: 'cedar', name: 'Cedar 沉稳', gender: '男声' },
@@ -17,6 +23,13 @@ const OPENAI_VOICES = [
   { id: 'verse', name: 'Verse 优雅', gender: '女声' },
 ];
 
+/**
+ * 调用 OpenAI TTS API 合成语音
+ * @param text 待合成文本
+ * @param voice 语音 ID（如 'marin'）
+ * @param speed 语速倍率，限制在 0.25-4.0 之间
+ * @returns MP3 格式的音频字节数组
+ */
 export async function synthesizeOpenAITTS(
   text: string,
   voice: string,
@@ -37,6 +50,7 @@ export async function synthesizeOpenAITTS(
   return new Uint8Array(arrayBuffer);
 }
 
+/** 返回 OpenAI 可用语音列表（多语言支持） */
 export function getOpenAIVoices(): Voice[] {
   return OPENAI_VOICES.map((v) => ({
     id: v.id,
