@@ -6,6 +6,13 @@
 import OpenAI from 'openai'
 import type { Voice } from './types'
 
+// 惰性单例，首次调用时创建，避免构建时报错且不重复创建
+let _client: OpenAI | null = null
+function getClient() {
+  if (!_client) _client = new OpenAI()
+  return _client
+}
+
 // OpenAI 可用语音列表及其中文描述
 const OPENAI_VOICES = [
   { id: 'marin', name: 'Marin 温暖', gender: '女声' },
@@ -35,16 +42,14 @@ export async function synthesizeOpenAITTS(
   voice: string,
   speed: number,
 ): Promise<Uint8Array> {
-  const client = new OpenAI()
-
-  const response = await client.audio.speech.create({
+  const response = await getClient().audio.speech.create({
     model: 'gpt-4o-mini-tts',
     input: text,
     voice: voice as 'alloy',
     instructions: '用温暖自然的语气朗读，语速平稳',
     response_format: 'mp3',
     speed: Math.max(0.25, Math.min(4.0, speed)),
-  } as Parameters<typeof client.audio.speech.create>[0])
+  } as Parameters<OpenAI['audio']['speech']['create']>[0])
 
   const arrayBuffer = await response.arrayBuffer()
   return new Uint8Array(arrayBuffer)

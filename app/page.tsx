@@ -28,12 +28,17 @@ export default function Home() {
     setPendingHistoryItem(item)
   }, [])
 
+  // 历史条目已被 Player 消费，清空待处理项
+  const handleHistoryItemConsumed = useCallback(() => {
+    setPendingHistoryItem(null)
+  }, [])
+
   return (
     <div className="flex flex-col flex-1 items-center min-h-dvh py-12">
       <Player
         onHistoryUpdate={handleHistoryUpdate}
         pendingHistoryItem={pendingHistoryItem}
-        onHistoryItemConsumed={() => setPendingHistoryItem(null)}
+        onHistoryItemConsumed={handleHistoryItemConsumed}
       />
       <History onSelect={handleHistorySelect} refreshKey={historyRefreshKey} />
     </div>

@@ -11,7 +11,7 @@ export interface PlayerSettings {
 }
 
 // localStorage 存储键名
-const SETTINGS_KEY = 'textplayer_settings'
+const SETTINGS_KEY = 'textplayer_settings:v1'
 
 // 默认设置：Edge TTS + 晓晓语音 + 正常语速
 const DEFAULT_SETTINGS: PlayerSettings = {
@@ -35,5 +35,7 @@ export function loadSettings(): PlayerSettings {
 
 /** 将用户设置持久化到 localStorage */
 export function saveSettings(settings: PlayerSettings) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+  } catch {}
 }

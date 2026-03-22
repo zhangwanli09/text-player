@@ -82,8 +82,8 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
                 </div>
                 <button
                   onClick={(e) => handleDelete(e, item.id)}
-                  className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                  title="删除"
+                  className="p-1 text-zinc-400 hover:text-red-500 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-zinc-400 rounded transition-opacity shrink-0"
+                  aria-label="删除"
                 >
                   <svg
                     width="14"
@@ -92,6 +92,7 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="1.5"
+                    aria-hidden="true"
                   >
                     <path d="M3 3l8 8M11 3l-8 8" />
                   </svg>
@@ -100,7 +101,7 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
               {!done && item.totalChunks > 1 && (
                 <div className="mt-2 h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-zinc-500 rounded-full transition-all"
+                    className="h-full bg-zinc-500 rounded-full transition-[width]"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -113,6 +114,12 @@ export default function History({ onSelect, refreshKey }: HistoryProps) {
   )
 }
 
+// 模块级别日期格式化器，避免重复创建
+const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  month: 'long',
+  day: 'numeric',
+})
+
 /** 将时间戳格式化为相对时间（刚刚/分钟前/小时前）或日期（月日） */
 function formatTime(ts: number): string {
   const now = Date.now()
@@ -122,8 +129,5 @@ function formatTime(ts: number): string {
   if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
   if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
 
-  const date = new Date(ts)
-  const month = date.getMonth() + 1
-  const day = date.getDate()
-  return `${month}月${day}日`
+  return dateFormatter.format(ts)
 }

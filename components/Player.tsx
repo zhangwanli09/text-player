@@ -23,6 +23,9 @@ type PlayState = 'idle' | 'loading' | 'playing' | 'paused'
 // 可选的播放速度档位
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2]
 
+// URL 匹配正则，提升到模块级别避免重复创建
+const URL_REGEX = /^https?:\/\//i
+
 interface PlayerProps {
   onHistoryUpdate?: () => void // 历史记录变更时的回调
   pendingHistoryItem?: HistoryItem | null // 待恢复播放的历史条目
@@ -73,11 +76,6 @@ export default function Player({
       setLoadingVoices(false)
     }
   }, [])
-
-  // 设置变更时自动持久化到 localStorage
-  useEffect(() => {
-    saveSettings(settings)
-  }, [settings])
 
   // 引擎切换时重新加载对应的语音列表
   useEffect(() => {
@@ -245,7 +243,7 @@ export default function Player({
   )
 
   /** 判断输入是否为 URL */
-  const isURL = (text: string) => /^https?:\/\//i.test(text)
+  const isURL = (text: string) => URL_REGEX.test(text)
 
   /**
    * 开始播放文本
@@ -345,12 +343,16 @@ export default function Player({
       setInput(item.text)
       setError('')
       stopPlayback()
-      setSettings((prev) => ({
-        ...prev,
-        engine: item.engine,
-        voice: item.voice,
-        speed: item.speed,
-      }))
+      setSettings((prev) => {
+        const next = {
+          ...prev,
+          engine: item.engine,
+          voice: item.voice,
+          speed: item.speed,
+        }
+        saveSettings(next)
+        return next
+      })
       startPlayback(item.text, {
         startChunk:
           item.currentChunk < item.totalChunks ? item.currentChunk : 0,
@@ -408,22 +410,30 @@ export default function Player({
     stopRef.current = handleStop
   }, [handlePauseResume, handleStop])
 
-  /** 更新单个设置项 */
+  /** 更新单个设置项并持久化 */
   const updateSetting = <K extends keyof PlayerSettings>(
     key: K,
     value: PlayerSettings[K],
   ) => {
-    setSettings((prev) => ({ ...prev, [key]: value }))
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value }
+      saveSettings(next)
+      return next
+    })
   }
 
-  /** 切换 TTS 引擎，同时重置为该引擎的默认语音 */
+  /** 切换 TTS 引擎，同时重置为该引擎的默认语音并持久化 */
   const handleEngineChange = (engine: TTSEngineType) => {
     const config = TTS_ENGINES.find((e) => e.type === engine)
-    setSettings((prev) => ({
-      ...prev,
-      engine,
-      voice: config?.defaultVoice || prev.voice,
-    }))
+    setSettings((prev) => {
+      const next = {
+        ...prev,
+        engine,
+        voice: config?.defaultVoice || prev.voice,
+      }
+      saveSettings(next)
+      return next
+    })
   }
 
   const isActive = playState !== 'idle'
@@ -437,8 +447,8 @@ export default function Player({
         </h1>
         <button
           onClick={() => setShowSettings(!showSettings)}
-          className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-          title="设置"
+          className="p-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 focus-visible:ring-2 focus-visible:ring-zinc-400 rounded-lg transition-colors"
+          aria-label="设置"
         >
           <svg
             width="20"
@@ -447,6 +457,7 @@ export default function Player({
             fill="none"
             stroke="currentColor"
             strokeWidth="1.5"
+            aria-hidden="true"
           >
             <path d="M10 13a3 3 0 100-6 3 3 0 000 6z" />
             <path d="M16.5 10a6.5 6.5 0 01-.3 2l1.8 1.4-2 3.4-2.1-.7a6.5 6.5 0 01-1.7 1L12 19H8l-.2-1.9a6.5 6.5 0 01-1.7-1l-2.1.7-2-3.4L3.8 12a6.5 6.5 0 010-4L2 6.6l2-3.4 2.1.7a6.5 6.5 0 011.7-1L8 1h4l.2 1.9a6.5 6.5 0 011.7 1l2.1-.7 2 3.4L16.2 8a6.5 6.5 0 01.3 2z" />
@@ -486,7 +497,7 @@ export default function Player({
                 className="w-full px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 disabled:opacity-50"
               >
                 {loadingVoices ? (
-                  <option>加载中...</option>
+                  <option>加载中…</option>
                 ) : voices.length === 0 ? (
                   <option value={settings.voice}>{settings.voice}</option>
                 ) : (
@@ -529,9 +540,10 @@ export default function Player({
       <textarea
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        placeholder="粘贴文本或 URL，然后点击播放..."
+        placeholder="粘贴文本或 URL，然后点击播放…"
+        aria-label="输入文本或 URL"
         rows={6}
-        className="w-full p-4 text-base rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 resize-none focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:focus:ring-zinc-600 placeholder:text-zinc-400"
+        className="w-full p-4 text-base rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 dark:focus-visible:ring-zinc-600 placeholder:text-zinc-400"
       />
 
       {/* Error */}
@@ -547,9 +559,15 @@ export default function Player({
           <button
             onClick={handlePlay}
             disabled={!input.trim()}
-            className="flex items-center gap-2 px-6 py-3 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-full font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-6 py-3 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-full font-medium hover:opacity-90 focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              aria-hidden="true"
+            >
               <path d="M4 2.5v11l9-5.5z" />
             </svg>
             播放
@@ -559,7 +577,7 @@ export default function Player({
             <button
               onClick={handlePauseResume}
               disabled={playState === 'loading'}
-              className="flex items-center gap-2 px-5 py-3 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-full font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+              className="flex items-center gap-2 px-5 py-3 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-full font-medium hover:opacity-90 focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 transition-opacity disabled:opacity-60"
             >
               {playState === 'paused' ? (
                 <>
@@ -568,6 +586,7 @@ export default function Player({
                     height="16"
                     viewBox="0 0 16 16"
                     fill="currentColor"
+                    aria-hidden="true"
                   >
                     <path d="M4 2.5v11l9-5.5z" />
                   </svg>
@@ -583,6 +602,7 @@ export default function Player({
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
+                    aria-hidden="true"
                   >
                     <circle
                       cx="8"
@@ -592,7 +612,7 @@ export default function Player({
                       strokeDashoffset="8"
                     />
                   </svg>
-                  加载中
+                  加载中…
                 </>
               ) : (
                 <>
@@ -601,6 +621,7 @@ export default function Player({
                     height="16"
                     viewBox="0 0 16 16"
                     fill="currentColor"
+                    aria-hidden="true"
                   >
                     <rect x="3" y="2" width="4" height="12" rx="1" />
                     <rect x="9" y="2" width="4" height="12" rx="1" />
@@ -611,7 +632,7 @@ export default function Player({
             </button>
             <button
               onClick={handleStop}
-              className="px-5 py-3 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-full font-medium transition-colors"
+              className="px-5 py-3 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 rounded-full font-medium transition-colors"
             >
               停止
             </button>
