@@ -64,11 +64,21 @@ export async function updateProgress(
   }
 }
 
-/** 获取全部历史记录，按更新时间倒序（最新在前） */
+/** 30 天的毫秒数 */
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
+/** 获取全部历史记录，按更新时间倒序（最新在前），自动清理超过 30 天的记录 */
 export async function getHistory(): Promise<HistoryItem[]> {
   const db = await getDB()
   const items = await db.getAllFromIndex(STORE_NAME, 'updatedAt')
-  return items.reverse()
+  const cutoff = Date.now() - THIRTY_DAYS_MS
+  const expired = items.filter((item) => item.updatedAt < cutoff)
+  if (expired.length > 0) {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    await Promise.all(expired.map((item) => tx.store.delete(item.id)))
+    await tx.done
+  }
+  return items.filter((item) => item.updatedAt >= cutoff).reverse()
 }
 
 /** 删除指定历史记录 */
