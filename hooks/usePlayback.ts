@@ -283,6 +283,10 @@ export function usePlayback(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: raw }),
           })
+          const contentType = res.headers.get('content-type') || ''
+          if (!contentType.includes('application/json')) {
+            throw new Error('提取失败：服务器返回了非预期的响应')
+          }
           const data = await res.json()
           if (!res.ok) throw new Error(data.error || '提取失败')
           setInput(data.content)
@@ -313,7 +317,13 @@ export function usePlayback(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       })
-        .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+        .then((res) => {
+          const contentType = res.headers.get('content-type') || ''
+          if (!contentType.includes('application/json')) {
+            throw new Error('提取失败：服务器返回了非预期的响应')
+          }
+          return res.json().then((data) => ({ ok: res.ok, data }))
+        })
         .then(({ ok, data }) => {
           if (!ok) throw new Error(data.error || '提取失败')
           setInput(data.content)
